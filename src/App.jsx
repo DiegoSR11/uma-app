@@ -4,6 +4,7 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Panel from './pages/Panel';
 import Tareas from './pages/Tareas'; 
+import Notas from './pages/Notas';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/panel" element={<Panel />} />
         <Route path="/tareas" element={<Tareas />} />
+        <Route path="/notas" element={<Notas />} />
       </Routes>
     </BrowserRouter>
   );
