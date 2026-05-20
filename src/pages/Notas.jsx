@@ -5,10 +5,6 @@ import { db, auth } from '../firebase';
 import { collection, addDoc, onSnapshot, query, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { IconoDinamico, IconoEstrella, NOMBRES_ICONOS } from '../components/Iconos';
 
-// NUEVO: Importamos el polyfill para Drag & Drop en celulares
-import { polyfill } from 'mobile-drag-drop';
-import 'mobile-drag-drop/default.css'; // Estilos necesarios para el parche visual táctil
-
 const CATEGORIAS = ['General', 'Prompt', 'Fórmula Excel', 'Idea', 'Código'];
 const COLORES = ['#cbd5e1', '#60a5fa', '#34d399', '#fbbf24', '#f87171', '#c084fc']; 
 
@@ -26,15 +22,6 @@ const Notas = () => {
   const [dragTarget, setDragTarget] = useState(null); 
 
   const inicialUsuario = auth.currentUser?.email ? auth.currentUser.email.charAt(0).toUpperCase() : 'U';
-
-  // NUEVO: Inicializar el Polyfill táctil al cargar la página
-  useEffect(() => {
-    polyfill({
-      holdToDrag: 300 // (Opcional) Tienes que mantener presionado el ícono 300ms en el celular para arrastrarlo (evita arrastres accidentales al hacer scroll)
-    });
-    // Evitar que la pantalla haga scroll mientas arrastras en iOS
-    window.addEventListener('touchmove', function() {}, { passive: false });
-  }, []);
 
   useEffect(() => {
     const fondos = ['/fondo-login-1.png', '/fondo-login-2.png', '/fondo-login-3.png'];
@@ -150,39 +137,17 @@ const Notas = () => {
 
   return (
     <div style={{ ...styles.appContainer, backgroundImage: `url(${bgImage})` }}>
-      {/* NUEVO: Bloque CSS con Media Queries para pantallas de celular */}
-      <style>{`
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
-        * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.15) transparent; }
-        ::placeholder { color: rgba(255,255,255,0.3); }
-
-        @media (max-width: 768px) {
-          .header-responsive { padding: 0 15px !important; }
-          .hide-on-mobile { display: none !important; }
-          .topbar-responsive { flex-direction: column; align-items: flex-start !important; gap: 15px; padding: 15px !important; }
-          .desktop-responsive { padding: 15px !important; justify-content: center; }
-          .icon-responsive { width: 85px !important; }
-          .modal-box-responsive { width: 95% !important; padding: 20px !important; max-height: 90vh; overflow-y: auto; }
-          .modal-body-responsive { flex-direction: column !important; gap: 15px !important; }
-          .col-responsive { width: 100% !important; flex: none !important; }
-        }
-      `}</style>
+      <style>{` ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; } ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); } * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.15) transparent; } ::placeholder { color: rgba(255,255,255,0.3); } `}</style>
 
       <div style={styles.blurOverlay}></div>
 
-      <header style={styles.header} className="header-responsive">
-        <button onClick={() => navigate('/panel')} style={styles.backBtn}>
-          <span className="hide-on-mobile">VOLVER AL PANEL</span>
-          <span style={{ display: 'none' }} className="show-on-mobile">← VOLVER</span>
-        </button>
+      <header style={styles.header}>
+        <button onClick={() => navigate('/panel')} style={styles.backBtn}>VOLVER AL PANEL</button>
         <img src="/uma-logo.png" alt="Logo UMA" style={styles.logoImage} />
         <div style={styles.headerRight}><div style={styles.profileCircle}>{inicialUsuario}</div></div>
       </header>
 
-      <div style={styles.topBar} className="topbar-responsive">
+      <div style={styles.topBar}>
         <div style={styles.breadcrumbs}>
           <span style={{ ...styles.crumbBtn, backgroundColor: dragTarget === null ? 'rgba(255,255,255,0.1)' : 'transparent' }} onClick={() => setCurrentFolder(null)} onDragOver={(e) => { e.preventDefault(); setDragTarget(null); }} onDrop={(e) => handleDrop(e, null)}>Escritorio</span>
           {breadcrumbs.map(folder => (
@@ -193,13 +158,13 @@ const Notas = () => {
           ))}
         </div>
         <div style={styles.actionButtons}>
-          {currentDepth < 2 && <button onClick={abrirNuevaCarpeta} style={styles.addFolderBtn}>+ Carpeta</button>}
-          <button onClick={abrirNuevaNota} style={styles.addNoteBtn}>+ Nota</button>
-          <button onClick={abrirNuevoEnlace} style={styles.addLinkBtn}>+ Link</button>
+          {currentDepth < 2 && <button onClick={abrirNuevaCarpeta} style={styles.addFolderBtn}>Nueva Carpeta</button>}
+          <button onClick={abrirNuevaNota} style={styles.addNoteBtn}>Nueva Nota</button>
+          <button onClick={abrirNuevoEnlace} style={styles.addLinkBtn}>Nuevo Enlace</button>
         </div>
       </div>
 
-      <div style={styles.desktopArea} className="desktop-responsive" onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, currentFolder)}>
+      <div style={styles.desktopArea} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, currentFolder)}>
         {itemsEnVista.length === 0 ? (
           <div style={styles.emptyState}>No hay elementos. Crea una carpeta, nota o enlace aquí.</div>
         ) : (
@@ -211,16 +176,15 @@ const Notas = () => {
             return (
               <div 
                 key={item.idBaseDatos} 
-                className="icon-responsive"
-                style={{ ...styles.iconWrapper, backgroundColor: isSelected ? 'rgba(255,255,255,0.15)' : (isTarget ? 'rgba(255,255,255,0.1)' : 'transparent'), border: isTarget ? '1px dashed #1AACAC' : (isSelected ? '1px solid rgba(255,255,255,0.3)' : '1px solid transparent'), touchAction: 'none' }} // touchAction none ayuda a dispositivos móviles
-                draggable 
-                onDragStart={(e) => handleDragStart(e, item.idBaseDatos)}
+                style={{ ...styles.iconWrapper, backgroundColor: isSelected ? 'rgba(255,255,255,0.15)' : (isTarget ? 'rgba(255,255,255,0.1)' : 'transparent'), border: isTarget ? '1px dashed #1AACAC' : (isSelected ? '1px solid rgba(255,255,255,0.3)' : '1px solid transparent') }}
+                draggable onDragStart={(e) => handleDragStart(e, item.idBaseDatos)}
                 onDragOver={(e) => { if (item.tipoItem === 'carpeta') { e.preventDefault(); e.stopPropagation(); setDragTarget(item.idBaseDatos); } }}
                 onDragLeave={() => setDragTarget(null)} onDrop={(e) => { if (item.tipoItem === 'carpeta') handleDrop(e, item.idBaseDatos); }}
                 onClick={(e) => handleItemClick(e, item)} onDoubleClick={(e) => handleItemDoubleClick(e, item)} onContextMenu={(e) => handleContextMenu(e, item)}
               >
                 <div style={styles.iconVisual}>
                   <IconoDinamico nombre={item.icono} color={item.color} />
+                  
                   {item.destacado && (
                     <div style={styles.centeredStar}>
                       <IconoEstrella color={colorEstrella} size={20} />
@@ -248,15 +212,15 @@ const Notas = () => {
 
       {modalItem && (
         <div style={styles.modalOverlay}>
-          <div style={modalItem.tipoItem === 'nota' ? styles.glassModal : styles.glassModalMini} className="modal-box-responsive">
+          <div style={modalItem.tipoItem === 'nota' ? styles.glassModal : styles.glassModalMini}>
             <div style={styles.modalHeader}>
               <h2 style={{ margin: 0, fontSize: 18 }}>{modalItem.esNueva ? `Nuevo(a) ${modalItem.tipoItem}` : 'Configurar'}</h2>
               <button style={styles.closeBtn} onClick={() => setModalItem(null)}>✖</button>
             </div>
             
             <form onSubmit={guardarElemento} style={styles.modalForm}>
-              <div style={styles.modalBody} className="modal-body-responsive">
-                <div style={styles.mainCol} className="col-responsive">
+              <div style={styles.modalBody}>
+                <div style={styles.mainCol}>
                   <label style={styles.modalLabel}>Nombre / Título</label>
                   <input style={styles.glassInput} value={modalItem.titulo} onChange={(e) => setModalItem({ ...modalItem, titulo: e.target.value })} placeholder="Ej: Universidad, etc." autoFocus required />
                   
@@ -274,7 +238,7 @@ const Notas = () => {
                   )}
                 </div>
 
-                <div style={styles.sideCol} className="col-responsive">
+                <div style={styles.sideCol}>
                   {modalItem.tipoItem !== 'carpeta' && (
                     <>
                       <label style={styles.modalLabel}>Cambiar Ícono</label>
@@ -325,7 +289,7 @@ const Notas = () => {
 
       {confirmacionEliminar && (
         <div style={{ ...styles.modalOverlay, zIndex: 3000 }}>
-          <div style={styles.glassModalMini} className="modal-box-responsive">
+          <div style={styles.glassModalMini}>
             <h3 style={{ marginTop: 0, color: '#f87171' }}>¿Eliminar {confirmacionEliminar.nombre}?</h3>
             <p style={{ opacity: 0.8, fontSize: 14 }}>Esta acción no se puede deshacer.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
@@ -351,11 +315,11 @@ const styles = {
   headerRight: { display: 'flex', alignItems: 'center', gap: '15px' },
   profileCircle: { width: '35px', height: '35px', borderRadius: '50%', backgroundColor: '#1AACAC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' },
   topBar: { position: 'relative', zIndex: 5, padding: '15px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', borderBottom: '1px solid rgba(255,255,255,0.05)' },
-  breadcrumbs: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', letterSpacing: '0.5px', flexWrap: 'wrap' },
+  breadcrumbs: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', letterSpacing: '0.5px' },
   crumbBtn: { cursor: 'pointer', color: '#cbd5e1', transition: '0.2s', padding: '4px 8px', borderRadius: '6px', '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } },
   crumbTrail: { display: 'flex', alignItems: 'center', gap: '8px' },
   crumbSeparator: { color: 'rgba(255,255,255,0.3)' },
-  actionButtons: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
+  actionButtons: { display: 'flex', gap: '10px' },
   addFolderBtn: { backgroundColor: 'transparent', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' },
   addNoteBtn: { backgroundColor: '#362FD9', color: '#FFF', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' },
   addLinkBtn: { backgroundColor: '#1AACAC', color: '#FFF', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' },
