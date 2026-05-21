@@ -1,19 +1,20 @@
 // src/pages/Login.jsx
 import { useState, useEffect } from 'react';
-// 1. Importamos useNavigate para cambiar de página automáticamente tras el login
 import { Link, useNavigate } from 'react-router-dom';
-// 2. Importamos las herramientas de Firebase desde nuestro archivo de configuración
-import { auth, googleProvider } from '../firebase';
-// 3. Importamos las funciones específicas de autenticación de Firebase
+// Asegúrate de importar 'db' desde tu firebase.js
+import { auth, googleProvider, db } from '../firebase';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
-  signInWithPopup 
+  signInWithPopup,
+  updateProfile // Importante para guardar el nombre en Auth
 } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore'; // Importante para guardar en la Base de Datos
 
 const Login = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [bgImage, setBgImage] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // Nuevo estado de carga
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,10 +22,7 @@ const Login = () => {
   const [birthDate, setBirthDate] = useState('');
   const [country, setCountry] = useState('PE'); 
   
-  // Estado para mostrar mensajes de error si la contraseña está mal, el correo ya existe, etc.
   const [errorMensaje, setErrorMensaje] = useState('');
-
-  // Herramienta para navegar (cambiar de ruta)
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -33,36 +31,38 @@ const Login = () => {
     setBgImage(fondos[indiceAleatorio]);
   }, []);
 
-  // 4. Nueva función: Manejar el envío del formulario (Registro o Ingreso normal)
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Evita que la página recargue
-    setErrorMensaje(''); // Limpiamos errores anteriores
+    e.preventDefault();
+    setErrorMensaje('');
+    setIsLoading(true);
 
     try {
       if (isRegistering) {
-        // --- Lógica de REGISTRO ---
-        // Firebase toma el correo y la contraseña y crea el usuario
+        // --- LÓGICA DE REGISTRO ---
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        console.log("¡Usuario registrado con éxito!", userCredential.user);
+        const user = userCredential.user;
         
-        // (En un futuro paso, guardaremos el Nombre, Fecha de Nacimiento y País en la Base de Datos)
+        // 1. Actualizamos el nombre en Firebase Auth
+        await updateProfile(user, { displayName: name });
+
+        // 2. Guardamos al usuario en la BD (VITAL para el buscador de amigos)
+        await setDoc(doc(db, "usuarios", user.uid), {
+          uid: user.uid,
+          email: user.email.toLowerCase(),
+          displayName: name,
+          birthDate: birthDate,
+          country: country,
+          fechaRegistro: new Date().toISOString()
+        });
         
-        // Si todo sale bien, lo mandamos al panel principal (que crearemos luego)
         navigate('/panel'); 
       } else {
-        // --- Lógica de INGRESO NORMAL ---
-        // Firebase verifica que las credenciales sean correctas
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        console.log("¡Sesión iniciada con éxito!", userCredential.user);
-        
-        // Lo mandamos al panel principal
+        // --- LÓGICA DE INGRESO NORMAL ---
+        await signInWithEmailAndPassword(auth, email, password);
         navigate('/panel');
       }
     } catch (error) {
-      // Si hay un error (ej. contraseña incorrecta), lo mostramos en pantalla
       console.error("Error en la autenticación:", error.message);
-      
-      // Traducimos los errores más comunes para que el usuario entienda
       if (error.code === 'auth/email-already-in-use') {
         setErrorMensaje('Este correo ya está registrado.');
       } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
@@ -72,22 +72,32 @@ const Login = () => {
       } else {
         setErrorMensaje('Ocurrió un error. Inténtalo de nuevo.');
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // 5. Nueva función: Manejar el ingreso con Google
   const handleGoogleLogin = async () => {
     setErrorMensaje('');
+    setIsLoading(true);
     try {
-      // Abre la ventana emergente de Google
       const result = await signInWithPopup(auth, googleProvider);
-      console.log("¡Usuario conectado con Google!", result.user);
+      const user = result.user;
       
-      // Lo mandamos al panel principal
+      // Asegurarnos de que el usuario de Google también exista en nuestra colección 'usuarios'
+      // Usamos { merge: true } para que, si ya existe, no borre sus datos anteriores (como fecha de nacimiento)
+      await setDoc(doc(db, "usuarios", user.uid), {
+        uid: user.uid,
+        email: user.email.toLowerCase(),
+        displayName: user.displayName || user.email.split('@')[0],
+      }, { merge: true });
+      
       navigate('/panel');
     } catch (error) {
       console.error("Error al iniciar con Google:", error.message);
       setErrorMensaje('No se pudo iniciar sesión con Google.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -100,7 +110,6 @@ const Login = () => {
           <h2 style={styles.title}>{isRegistering ? 'Crea tu cuenta' : 'Bienvenido de nuevo'}</h2>
         </div>
 
-        {/* 6. Caja para mostrar errores (solo aparece si hay un error) */}
         {errorMensaje && (
           <div style={styles.errorBox}>
             {errorMensaje}
@@ -135,6 +144,9 @@ const Login = () => {
               >
                 <option value="PE">🇵🇪 Perú</option>
                 <option value="CO">🇨🇴 Colombia</option>
+                <option value="MX">🇲🇽 México</option>
+                <option value="AR">🇦🇷 Argentina</option>
+                <option value="CL">🇨🇱 Chile</option>
               </select>
             </>
           )}
@@ -156,8 +168,8 @@ const Login = () => {
             required
           />
 
-          <button type="submit" style={styles.submitBtn}>
-            {isRegistering ? 'Registrarse en UMA' : 'Entrar a UMA'}
+          <button type="submit" style={{ ...styles.submitBtn, opacity: isLoading ? 0.7 : 1 }} disabled={isLoading}>
+            {isLoading ? 'Cargando...' : (isRegistering ? 'Registrarse en UMA' : 'Entrar a UMA')}
           </button>
         </form>
 
@@ -167,8 +179,7 @@ const Login = () => {
           <span style={styles.dividerLine}></span>
         </div>
 
-        {/* Cambiamos el onClick para que llame a nuestra nueva función de Google */}
-        <button type="button" style={styles.googleBtn} onClick={handleGoogleLogin}>
+        <button type="button" style={{ ...styles.googleBtn, opacity: isLoading ? 0.7 : 1 }} onClick={handleGoogleLogin} disabled={isLoading}>
           <img src="/google.png" alt="Google" style={styles.googleIcon} />
         </button>
 
@@ -177,8 +188,10 @@ const Login = () => {
           <span 
             style={styles.toggleLink} 
             onClick={() => {
-              setIsRegistering(!isRegistering);
-              setErrorMensaje(''); // Limpiamos errores al cambiar de vista
+              if(!isLoading){
+                setIsRegistering(!isRegistering);
+                setErrorMensaje('');
+              }
             }}
           >
             {isRegistering ? ' Inicia Sesión' : ' Regístrate aquí'}
@@ -194,141 +207,29 @@ const Login = () => {
   );
 };
 
-// Estilos
+// ==========================================
+// ESTILOS (Tus estilos exactos)
+// ==========================================
 const styles = {
-  container: {
-    height: '100vh', 
-    width: '100vw',  
-    overflow: 'hidden', 
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundColor: 'var(--color-bg)', 
-  },
-  card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-    padding: '20px 30px', 
-    borderRadius: '15px',
-    boxShadow: '0 15px 30px rgba(0,0,0,0.3)',
-    width: '100%',
-    maxWidth: '360px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-  header: {
-    textAlign: 'center',
-    marginBottom: '10px', 
-  },
-  logoImage: {
-    height: '65px', 
-    marginBottom: '5px',
-  },
-  title: {
-    color: 'var(--color-primary)',
-    fontSize: '18px', 
-    margin: 0,
-  },
-  // Nuevo estilo para la cajita de errores
-  errorBox: {
-    backgroundColor: '#ffebee', // Rojo muy clarito
-    color: '#c62828', // Rojo oscuro para el texto
-    padding: '8px 12px',
-    borderRadius: '6px',
-    fontSize: '13px',
-    width: '100%',
-    boxSizing: 'border-box',
-    marginBottom: '10px',
-    textAlign: 'center',
-    border: '1px solid #ffcdd2',
-  },
-  form: {
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px', 
-  },
-  row: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  input: {
-    padding: '8px 12px', 
-    borderRadius: '6px',
-    border: '1px solid #ccc',
-    fontSize: '14px',
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box',
-    fontFamily: 'inherit',
-  },
-  submitBtn: {
-    backgroundColor: 'var(--color-primary)',
-    color: 'var(--color-white)',
-    border: 'none',
-    padding: '10px', 
-    borderRadius: '6px',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    marginTop: '5px',
-    transition: 'background-color 0.3s',
-  },
-  divider: {
-    display: 'flex',
-    alignItems: 'center',
-    width: '100%',
-    margin: '10px 0', 
-  },
-  dividerLine: {
-    flex: 1,
-    height: '1px',
-    backgroundColor: '#ddd',
-  },
-  dividerText: {
-    padding: '0 10px',
-    color: '#888',
-    fontSize: '12px',
-  },
-  googleBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    backgroundColor: 'var(--color-white)',
-    color: '#444',
-    border: '1px solid #ccc',
-    padding: '6px', 
-    borderRadius: '6px',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s',
-  },
-  googleIcon: {
-    height: '24px', 
-    width: 'auto',  
-    objectFit: 'contain', 
-  },
-  toggleText: {
-    marginTop: '15px', 
-    fontSize: '13px',
-    color: '#666',
-  },
-  toggleLink: {
-    color: 'var(--color-secondary)',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-  },
-  footer: {
-    marginTop: '10px', 
-  },
-  backLink: {
-    color: '#999',
-    textDecoration: 'none',
-    fontSize: '12px',
-  }
+  container: { height: '100vh', width: '100vw', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: 'var(--color-bg)' },
+  card: { backgroundColor: 'rgba(255, 255, 255, 0.95)', padding: '20px 30px', borderRadius: '15px', boxShadow: '0 15px 30px rgba(0,0,0,0.3)', width: '100%', maxWidth: '360px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  header: { textAlign: 'center', marginBottom: '10px' },
+  logoImage: { height: '65px', marginBottom: '5px' },
+  title: { color: 'var(--color-primary)', fontSize: '18px', margin: 0 },
+  errorBox: { backgroundColor: '#ffebee', color: '#c62828', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', width: '100%', boxSizing: 'border-box', marginBottom: '10px', textAlign: 'center', border: '1px solid #ffcdd2' },
+  form: { width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' },
+  row: { display: 'flex', justifyContent: 'space-between', width: '100%' },
+  input: { padding: '8px 12px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' },
+  submitBtn: { backgroundColor: 'var(--color-primary)', color: 'var(--color-white)', border: 'none', padding: '10px', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '5px', transition: 'background-color 0.3s' },
+  divider: { display: 'flex', alignItems: 'center', width: '100%', margin: '10px 0' },
+  dividerLine: { flex: 1, height: '1px', backgroundColor: '#ddd' },
+  dividerText: { padding: '0 10px', color: '#888', fontSize: '12px' },
+  googleBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', backgroundColor: 'var(--color-white)', color: '#444', border: '1px solid #ccc', padding: '6px', borderRadius: '6px', cursor: 'pointer', transition: 'background-color 0.3s' },
+  googleIcon: { height: '24px', width: 'auto', objectFit: 'contain' },
+  toggleText: { marginTop: '15px', fontSize: '13px', color: '#666' },
+  toggleLink: { color: 'var(--color-secondary)', fontWeight: 'bold', cursor: 'pointer' },
+  footer: { marginTop: '10px' },
+  backLink: { color: '#999', textDecoration: 'none', fontSize: '12px' }
 };
 
 export default Login;

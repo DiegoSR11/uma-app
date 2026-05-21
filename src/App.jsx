@@ -5,6 +5,9 @@ import Login from './pages/Login';
 import Panel from './pages/Panel';
 import Tareas from './pages/Tareas'; 
 import Notas from './pages/Notas';
+import Amigos from './pages/Amigos';
+import Perfil from './pages/Perfil';
+
 
 function App() {
   return (
@@ -15,6 +18,8 @@ function App() {
         <Route path="/panel" element={<Panel />} />
         <Route path="/tareas" element={<Tareas />} />
         <Route path="/notas" element={<Notas />} />
+        <Route path="/amigos" element={<Amigos />} />
+        <Route path="/perfil" element={<Perfil />} />
       </Routes>
     </BrowserRouter>
   );
