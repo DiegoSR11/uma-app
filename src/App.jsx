@@ -7,7 +7,8 @@ import Tareas from './pages/Tareas';
 import Notas from './pages/Notas';
 import Amigos from './pages/Amigos';
 import Perfil from './pages/Perfil';
-
+import Espacios from './pages/Espacios';
+import Entorno from './pages/Entorno';
 
 function App() {
   return (
@@ -20,6 +21,11 @@ function App() {
         <Route path="/notas" element={<Notas />} />
         <Route path="/amigos" element={<Amigos />} />
         <Route path="/perfil" element={<Perfil />} />
+        <Route path="/espacios" element={<Espacios />} />
+        <Route path="/espacio/:id" element={<Entorno />} />
+        {/* Estas páginas jalarán el id de la URL para filtrar tareas/notas automáticamente de ese espacio */}
+        <Route path="/espacio/:id/kanban" element={<Tareas />} />
+        <Route path="/espacio/:id/escritorio" element={<Notas />} />
       </Routes>
     </BrowserRouter>
   );
